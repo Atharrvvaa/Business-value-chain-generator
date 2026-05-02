@@ -1,0 +1,40 @@
+COMPANY PROFILE: HDFC Bank Limited
+Industry: Banking & Financial Services (India)
+
+BUSINESS OVERVIEW:
+HDFC Bank is India's largest private sector bank by assets and market capitalization. 
+The bank serves retail, SME, and corporate customers through an omnichannel model 
+combining digital banking, branch network, and third-party distribution.
+
+VALUE PROPOSITION:
+Trusted financial partner delivering seamless digital-first banking experiences with 
+personalized products across savings, lending, investments, and insurance.
+
+KEY PRODUCTS & SERVICES:
+- Retail Banking: Savings accounts, fixed deposits, home loans, personal loans, credit cards
+- Corporate Banking: Working capital finance, trade finance, treasury services
+- SME Banking: Business loans, current accounts, cash management
+- Wealth Management: Mutual funds, insurance, portfolio management
+- Digital Banking: NetBanking, MobileBanking, PayZapp, SmartBUY
+
+REVENUE STREAMS:
+- Net Interest Income (NII) from loan-deposit spread
+- Fee income from transaction banking, forex, and advisory
+- Insurance and wealth distribution commissions
+- Credit card annual fees and interchange
+
+STRATEGIC PRIORITIES:
+1. Accelerate digital adoption (75% digital transactions target)
+2. Expand rural and semi-urban footprint
+3. Cross-sell wealth & insurance products to existing base
+4. Strengthen cybersecurity and regulatory compliance
+
+DISTRIBUTION:
+- 7,800+ branches, 19,000+ ATMs
+- Digital channels (app, netbanking, API banking)
+- Business Correspondents in rural markets
+- Partnership with NBFCs, fintechs, and insurance companies
+
+COMPETITIVE POSITIONING:
+Premium service, technology leadership, and risk management discipline vs PSU banks.
+Competes with ICICI Bank, Axis Bank, SBI in key segments.

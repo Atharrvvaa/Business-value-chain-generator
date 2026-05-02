@@ -1,0 +1,13 @@
+fastapi
+json-repair
+uvicorn
+httpx
+python-multipart
+pydantic
+pydantic-settings
+PyMuPDF>=1.24.0
+python-pptx
+python-docx
+pytest
+pytest-asyncio
+httpx

@@ -1,0 +1,60 @@
+{
+  "company": "Zomato Limited",
+  "industry": "Food Delivery & Restaurant Technology",
+  "founded": 2008,
+  "headquarters": "Gurugram, India",
+  
+  "businessModel": {
+    "type": "Two-sided marketplace + B2B SaaS",
+    "revenueStreams": [
+      "Commission from restaurant orders (18-25%)",
+      "Delivery fee from customers",
+      "Zomato Gold / Zomato Pro subscription",
+      "Hyperpure (B2B ingredient supply to restaurants)",
+      "Blinkit quick commerce (10-minute delivery)",
+      "Advertising revenue from restaurant promotions"
+    ],
+    "costStructure": [
+      "Delivery partner incentives and salaries",
+      "Technology infrastructure and R&D",
+      "Marketing and customer acquisition",
+      "Hyperpure supply chain and warehousing"
+    ]
+  },
+  
+  "customerSegments": {
+    "consumers": "Urban millennials, working professionals, families ordering food online",
+    "restaurants": "QSRs, cloud kitchens, standalone restaurants, chains",
+    "b2b": "Restaurant operators needing fresh ingredients (Hyperpure)"
+  },
+  
+  "keyProducts": [
+    "Food delivery marketplace (core)",
+    "Blinkit: 10-minute grocery and essentials delivery",
+    "Hyperpure: farm-to-fork ingredient supply for restaurants",
+    "Dining-out discovery and table reservations",
+    "Zomato Pro subscription for dining benefits"
+  ],
+  
+  "operatingModel": {
+    "type": "Digital-first, asset-light delivery network",
+    "deliveryPartners": "Gig economy model — 350,000+ delivery partners",
+    "darkStores": "Blinkit operates 700+ dark stores for quick commerce",
+    "technology": "AI-driven demand forecasting, route optimization, dynamic pricing"
+  },
+  
+  "strategicPriorities": [
+    "Profitability focus: Adjusted EBITDA positive milestone",
+    "Blinkit expansion: 1000+ dark stores by FY26",
+    "Hyperpure scale: expand to 50+ cities",
+    "International: re-evaluate UAE operations",
+    "B2B district commerce platform"
+  ],
+  
+  "competitiveDifferentiation": [
+    "Brand trust and first-mover advantage in food delivery",
+    "Integrated ecosystem: food + grocery + ingredients",
+    "Technology superiority: AI/ML for matching and logistics",
+    "Network effects: more restaurants and customers = better experience"
+  ]
+}
