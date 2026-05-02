@@ -1,5 +1,41 @@
 // ─── Export Utilities ────────────────────────────────────────────────────────
 
+export async function exportAsPDF(element, companyName) {
+  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+    import('html2canvas'),
+    import('jspdf'),
+  ]);
+
+  const canvas = await html2canvas(element, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: '#0a0a0f',
+    logging: false,
+  });
+
+  const imgData = canvas.toDataURL('image/png');
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  const pdfWidth = pdf.internal.pageSize.getWidth();
+  const pdfHeight = pdf.internal.pageSize.getHeight();
+  const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+  let heightLeft = imgHeight;
+  let position = 0;
+
+  pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+  heightLeft -= pdfHeight;
+
+  while (heightLeft > 0) {
+    position -= pdfHeight;
+    pdf.addPage();
+    pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+    heightLeft -= pdfHeight;
+  }
+
+  pdf.save(`${slug(companyName)}-value-chain.pdf`);
+}
+
 export function exportAsJSON(result, companyName) {
   const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
   download(blob, `${slug(companyName)}-value-chain.json`);

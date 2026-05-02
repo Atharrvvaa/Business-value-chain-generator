@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { generateValueChain, checkBackendHealth, BACKEND_URL } from './aiEngine.js';
 import { formatFileSize } from './fileReader.js';
-import { exportAsJSON, exportAsMarkdown, exportAsCSV } from './exportUtils.js';
+import { exportAsJSON, exportAsMarkdown, exportAsCSV, exportAsPDF } from './exportUtils.js';
 
 // ─── Icons (inline SVG for zero deps) ────────────────────────────────────────
 const Icon = ({ d, size = 16 }) => (
@@ -271,7 +271,7 @@ function ArchDiagram({ result }) {
     <div style={styles.archContainer}>
       <h3 style={styles.sectionTitle}>
         <Icon d={ICONS.layers} size={16} />
-        <span style={{ marginLeft: 8 }}>Architecture Diagram</span>
+        <span style={{ marginLeft: 8 }}>Primary Value Chain</span>
       </h3>
 
       {/* Value chain flow diagram */}
@@ -347,9 +347,21 @@ function ResultView({ result, companyName, industry, onReset }) {
   const PA_COLORS = ['#e8c547', '#f09d35', '#e8705a', '#c75a8c', '#a06af5', '#6aa8f5', '#4ae8b0', '#35d4c4'];
   const SF_COLORS = ['#7c6af5', '#9b6af5', '#b86af5', '#d46af5', '#f06af5', '#f56acd'];
   const [activeTab, setActiveTab] = useState('primary');
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const resultRef = useRef();
+
+  const handleExportPDF = async () => {
+    if (!resultRef.current) return;
+    setPdfLoading(true);
+    try {
+      await exportAsPDF(resultRef.current, companyName);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   return (
-    <div style={styles.resultContainer}>
+    <div style={styles.resultContainer} ref={resultRef}>
       {/* Header */}
       <div style={styles.resultHeader}>
         <div>
@@ -369,6 +381,12 @@ function ResultView({ result, companyName, industry, onReset }) {
           </button>
           <button style={styles.exportBtn} onClick={() => exportAsCSV(result, companyName)}>
             <Icon d={ICONS.download} size={14} /> CSV
+          </button>
+          <button style={{ ...styles.exportBtn, ...styles.pdfBtn }} onClick={handleExportPDF} disabled={pdfLoading}>
+            {pdfLoading
+              ? <div style={{ ...styles.spinner, borderTopColor: 'var(--text-muted)', width: 12, height: 12, borderWidth: 1.5 }} />
+              : <Icon d={ICONS.download} size={14} />}
+            {pdfLoading ? ' Generating...' : ' PDF'}
           </button>
           <button style={{ ...styles.exportBtn, ...styles.resetBtn }} onClick={onReset}>
             <Icon d={ICONS.x} size={14} /> New Analysis
@@ -500,8 +518,7 @@ export default function App() {
           <div style={styles.inputSection}>
             {/* Hero */}
             <div style={styles.hero}>
-              <div style={styles.heroEyebrow}>McKinsey/Bain-Grade Analysis</div>
-              <h1 style={styles.heroTitle}>Generate Your Business<br /><span style={styles.heroAccent}>Value Chain</span></h1>
+<h1 style={styles.heroTitle}>Generate Your Business<br /><span style={styles.heroAccent}>Value Chain</span></h1>
               <p style={styles.heroDesc}>
                 AI-powered Value Chain Analysis and Level 2 Capability Mapping.<br />
                 Python FastAPI backend + Ollama (llama3.2) — 100% local, no data leaves your machine.
@@ -613,6 +630,7 @@ const styles = {
   headerActions: { display: 'flex', gap: 8, flexWrap: 'wrap' },
   exportBtn: { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 7, padding: '7px 13px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'var(--font-mono)' },
   resetBtn: { color: 'var(--error)', borderColor: 'var(--error)44' },
+  pdfBtn: { color: 'var(--accent)', borderColor: 'var(--accent)44' },
 
   // Context
   contextCard: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 22 },
