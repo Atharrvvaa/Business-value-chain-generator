@@ -25,6 +25,20 @@ export async function checkBackendHealth() {
   }
 }
 
+// ── Load pre-built demo result (HDFC Bank) ────────────────────────────────────
+export async function loadDemo() {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/demo`);
+    if (!res.ok) throw new Error(`Backend error ${res.status}`);
+    return await res.json();
+  } catch {
+    throw new Error(
+      `Cannot reach backend at ${BACKEND_URL}.\n` +
+      `Start it with:  uvicorn backend.main:app --reload --port 8000`
+    );
+  }
+}
+
 // ── Generate value chain (with optional files) ────────────────────────────────
 export async function generateValueChain(inputs, onProgress) {
   const { companyName, industry, description, repoUrl, files } = inputs;

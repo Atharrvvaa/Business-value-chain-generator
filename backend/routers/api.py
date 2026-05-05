@@ -7,6 +7,7 @@ from typing import Optional
 from backend.models.schemas import GenerateRequest, ValueChainResponse, HealthResponse
 from backend.services import ollama_service, file_service
 from backend.config import settings
+from backend.demo_data import HDFC_BANK_DEMO
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -169,6 +170,13 @@ async def generate_with_upload(
     except Exception as exc:
         logger.exception("Unexpected error in /generate/upload")
         raise HTTPException(status_code=500, detail=f"Unexpected error: {exc}")
+
+
+@router.get("/demo", response_model=ValueChainResponse, tags=["Demo"])
+async def demo():
+    """Returns a pre-built HDFC Bank value chain instantly — no Ollama required."""
+    logger.info("Demo endpoint called — returning pre-built HDFC Bank data")
+    return ValueChainResponse(**HDFC_BANK_DEMO)
 
 
 @router.get("/models", tags=["Health"])

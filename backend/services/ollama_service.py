@@ -168,7 +168,10 @@ async def generate_value_chain(
 
     payload = {
         "model": settings.ollama_model,
-        "stream": False,
+        "stream": True,
+        # No "format": "json" — that makes Ollama buffer the entire response before
+        # sending any chunk, which defeats streaming and hits the per-chunk read timeout.
+        # json_repair handles any malformed output instead.
         "options": {
             "temperature": settings.ollama_temperature,
             "num_predict": settings.ollama_num_predict,
@@ -180,15 +183,21 @@ async def generate_value_chain(
         ],
     }
 
-    async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=600.0, write=30.0, pool=5.0)) as client:
-        response = await client.post(
-            f"{settings.ollama_base_url}/api/chat",
-            json=payload,
-        )
-        response.raise_for_status()
+    # stream=True without format:json → Ollama sends one chunk per token.
+    # read timeout (60s) is per-chunk; each token arrives in < 1s on CPU,
+    # so total generation time is unlimited regardless of how slow the machine is.
+    raw_content = ""
+    async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=60.0, write=30.0, pool=5.0)) as client:
+        async with client.stream("POST", f"{settings.ollama_base_url}/api/chat", json=payload) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if not line:
+                    continue
+                chunk = json.loads(line)
+                raw_content += chunk.get("message", {}).get("content", "")
+                if chunk.get("done"):
+                    break
 
-    data = response.json()
-    raw_content = data.get("message", {}).get("content", "")
     logger.info("Ollama responded — raw content length=%d chars", len(raw_content))
 
     if not raw_content.strip():

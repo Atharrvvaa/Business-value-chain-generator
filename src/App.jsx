@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { generateValueChain, checkBackendHealth, BACKEND_URL } from './aiEngine.js';
+import { generateValueChain, checkBackendHealth, loadDemo, BACKEND_URL } from './aiEngine.js';
 import { formatFileSize } from './fileReader.js';
 import { exportAsJSON, exportAsMarkdown, exportAsCSV, exportAsPDF } from './exportUtils.js';
 
@@ -343,12 +343,19 @@ function ArchDiagram({ result }) {
 }
 
 // ─── Result View ──────────────────────────────────────────────────────────────
-function ResultView({ result, companyName, industry, onReset }) {
+function ResultView({ result, companyName, industry, onReset, savedAt }) {
   const PA_COLORS = ['#e8c547', '#f09d35', '#e8705a', '#c75a8c', '#a06af5', '#6aa8f5', '#4ae8b0', '#35d4c4'];
   const SF_COLORS = ['#7c6af5', '#9b6af5', '#b86af5', '#d46af5', '#f06af5', '#f56acd'];
   const [activeTab, setActiveTab] = useState('primary');
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [expiryLabel, setExpiryLabel] = useState(() => savedAt ? formatExpiry(savedAt) : null);
   const resultRef = useRef();
+
+  React.useEffect(() => {
+    if (!savedAt) return;
+    const t = setInterval(() => setExpiryLabel(formatExpiry(savedAt)), 60000);
+    return () => clearInterval(t);
+  }, [savedAt]);
 
   const handleExportPDF = async () => {
     if (!resultRef.current) return;
@@ -370,7 +377,12 @@ function ResultView({ result, companyName, industry, onReset }) {
             <span style={{ marginLeft: 10 }}>{companyName}</span>
             <span style={styles.industryPill}>{industry}</span>
           </div>
-          <div style={styles.resultSubtitle}>Business Value Chain & Capability Map</div>
+          <div style={styles.resultSubtitle}>
+            Business Value Chain & Capability Map
+            {expiryLabel && (
+              <span style={styles.expiryBadge}>⏱ saved · expires in {expiryLabel}</span>
+            )}
+          </div>
         </div>
         <div style={styles.headerActions}>
           <button style={styles.exportBtn} onClick={() => exportAsJSON(result, companyName)}>
@@ -454,13 +466,52 @@ function OllamaStatus({ status }) {
   );
 }
 
+// ─── Session persistence ──────────────────────────────────────────────────────
+const STORAGE_KEY = 'biz-architect-session';
+const TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+function loadPersistedSession() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { result: null, lastInputs: null, savedAt: null };
+    const parsed = JSON.parse(raw);
+    if (Date.now() - parsed.savedAt > TTL_MS) {
+      localStorage.removeItem(STORAGE_KEY);
+      return { result: null, lastInputs: null, savedAt: null };
+    }
+    return parsed;
+  } catch {
+    return { result: null, lastInputs: null, savedAt: null };
+  }
+}
+
+function saveSession(result, lastInputs) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ result, lastInputs, savedAt: Date.now() }));
+  } catch { /* storage full — ignore */ }
+}
+
+function clearSession() {
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+function formatExpiry(savedAt) {
+  const msLeft = TTL_MS - (Date.now() - savedAt);
+  if (msLeft <= 0) return null;
+  const h = Math.floor(msLeft / 3600000);
+  const m = Math.floor((msLeft % 3600000) / 60000);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [result, setResult] = useState(null);
+  const persisted = loadPersistedSession();
+  const [result, setResult] = useState(persisted.result);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState('');
   const [error, setError] = useState('');
-  const [lastInputs, setLastInputs] = useState(null);
+  const [lastInputs, setLastInputs] = useState(persisted.lastInputs);
+  const [savedAt, setSavedAt] = useState(persisted.savedAt);
   const [ollamaStatus, setOllamaStatus] = useState('checking');
   const [elapsed, setElapsed] = useState(0);
 
@@ -474,19 +525,39 @@ export default function App() {
     return () => clearInterval(t);
   }, [loading]);
 
+  const handleDemo = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    setResult(null);
+    const inputs = { companyName: 'HDFC Bank', industry: 'Banking & Financial Services' };
+    setLastInputs(inputs);
+    try {
+      const data = await loadDemo();
+      setResult(data);
+      saveSession(data, inputs);
+      setSavedAt(Date.now());
+    } catch (err) {
+      setError(err.message || 'Could not load demo.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const handleSubmit = useCallback(async ({ companyName, industry, description, repoUrl, files }) => {
     setLoading(true);
     setError('');
     setResult(null);
-    setLastInputs({ companyName, industry });
+    const inputs = { companyName, industry };
+    setLastInputs(inputs);
 
     try {
-      // Pass raw files — Python backend handles extraction
       const data = await generateValueChain(
         { companyName, industry, description, repoUrl, files },
         setProgress
       );
       setResult(data);
+      saveSession(data, inputs);
+      setSavedAt(Date.now());
     } catch (err) {
       setError(err.message || 'An unexpected error occurred.');
     } finally {
@@ -518,11 +589,19 @@ export default function App() {
           <div style={styles.inputSection}>
             {/* Hero */}
             <div style={styles.hero}>
-<h1 style={styles.heroTitle}>Generate Your Business<br /><span style={styles.heroAccent}>Value Chain</span></h1>
+              <h1 style={styles.heroTitle}>Generate Your Business<br /><span style={styles.heroAccent}>Value Chain</span></h1>
               <p style={styles.heroDesc}>
                 AI-powered Value Chain Analysis and Level 2 Capability Mapping.<br />
                 Python FastAPI backend + Ollama (llama3.2) — 100% local, no data leaves your machine.
               </p>
+              <button
+                style={styles.demoBtn}
+                onClick={handleDemo}
+                disabled={loading}
+              >
+                <Icon d={ICONS.sparkles} size={15} />
+                <span style={{ marginLeft: 8 }}>Try Live Demo — HDFC Bank</span>
+              </button>
             </div>
 
             {/* Ollama Status */}
@@ -561,7 +640,8 @@ export default function App() {
             result={result}
             companyName={lastInputs.companyName}
             industry={lastInputs.industry}
-            onReset={() => setResult(null)}
+            savedAt={savedAt}
+            onReset={() => { clearSession(); setResult(null); setSavedAt(null); }}
           />
         )}
       </main>
@@ -593,6 +673,8 @@ const styles = {
   heroTitle: { fontFamily: 'var(--font-display)', fontSize: 'clamp(32px, 5vw, 52px)', fontWeight: 800, lineHeight: 1.1, marginBottom: 16, color: 'var(--text)' },
   heroAccent: { color: 'var(--accent)' },
   heroDesc: { fontSize: 15, color: 'var(--text-muted)', lineHeight: 1.7 },
+
+  demoBtn: { marginTop: 24, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: '1px solid var(--accent)66', color: 'var(--accent)', borderRadius: 24, padding: '10px 22px', fontSize: 13, fontFamily: 'var(--font-mono)', cursor: 'pointer', transition: 'all 0.15s', letterSpacing: 0.5 },
 
   formCard: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 28 },
   form: { display: 'flex', flexDirection: 'column', gap: 20 },
@@ -626,7 +708,8 @@ const styles = {
   resultHeader: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 },
   resultTitle: { fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 800, display: 'flex', alignItems: 'center', color: 'var(--text)' },
   industryPill: { marginLeft: 12, fontSize: 12, background: 'var(--accent2)22', color: 'var(--accent2)', border: '1px solid var(--accent2)44', padding: '2px 10px', borderRadius: 20, fontFamily: 'var(--font-mono)', letterSpacing: 0.5 },
-  resultSubtitle: { color: 'var(--text-muted)', marginTop: 4, fontSize: 14 },
+  resultSubtitle: { color: 'var(--text-muted)', marginTop: 4, fontSize: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  expiryBadge: { fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--accent3)', background: 'var(--accent3)11', border: '1px solid var(--accent3)33', borderRadius: 20, padding: '2px 10px', letterSpacing: 0.3 },
   headerActions: { display: 'flex', gap: 8, flexWrap: 'wrap' },
   exportBtn: { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 7, padding: '7px 13px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'var(--font-mono)' },
   resetBtn: { color: 'var(--error)', borderColor: 'var(--error)44' },
