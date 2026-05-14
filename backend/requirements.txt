@@ -8,6 +8,7 @@ pydantic-settings
 PyMuPDF>=1.24.0
 python-pptx
 python-docx
+numpy
+beautifulsoup4
 pytest
 pytest-asyncio
-httpx

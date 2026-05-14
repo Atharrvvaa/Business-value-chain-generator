@@ -56,8 +56,8 @@ export async function generateValueChain(inputs, onProgress) {
       const form = new FormData();
       form.append('company_name', companyName);
       form.append('industry', industry);
-      if (description) form.append('description', description);
-      if (repoUrl) form.append('repo_url', repoUrl);
+      form.append('description', description || '');
+      form.append('repo_url', repoUrl || '');
       files.forEach(f => form.append('files', f));
 
       onProgress?.('Extracting documents on server...');
@@ -89,7 +89,15 @@ export async function generateValueChain(inputs, onProgress) {
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new Error(err?.detail || `Backend error ${response.status}`);
+    const detail = err?.detail;
+    const msg = typeof detail === 'string'
+      ? detail
+      : Array.isArray(detail)
+      ? detail.map(d => d?.msg || JSON.stringify(d)).join('; ')
+      : detail
+      ? JSON.stringify(detail)
+      : `Backend error ${response.status}`;
+    throw new Error(msg);
   }
 
   onProgress?.('Structuring value chain...');

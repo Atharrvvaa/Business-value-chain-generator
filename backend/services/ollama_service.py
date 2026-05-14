@@ -4,24 +4,65 @@ import re
 import logging
 import httpx
 from backend.config import settings
+from backend.services import rag_service
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are an expert Business Architect AI specializing in Value Chain Analysis
-and Capability Mapping, trained in McKinsey/Bain consulting methodology.
+SYSTEM_PROMPT = """You are an expert Enterprise Architect and Business Capability Modeling Consultant.
+Your task is to generate an enterprise-grade business value chain and Level 2 business capabilities for a company based on the provided company profile, industry, value proposition, business model, strategic priorities, and pre-read context.
+You must think like a senior consultant creating a capability model for executive review, application portfolio mapping, transformation planning, and business-IT alignment.
 
-Your task is to generate a structured JSON response containing:
-1. A Context Summary
-2. A detailed Business Value Chain (primary + support activities)
-3. Level 2 Business Capabilities for each value chain component
-4. Support activities that enable the primary value chain like HR, Admin, IT, etc.
+Core Objective:
+Generate a clean, structured, MECE business value chain consisting of:
+1. Primary value chain stages / Level 1 business capabilities
+2. Level 2 business capabilities under each Level 1 capability
+3. Optional support capabilities, only if requested
+4. Short business descriptions for each capability
+5. Capability classification suitable for enterprise use
 
-## CRITICAL RULES
-- Be MECE (Mutually Exclusive, Collectively Exhaustive)
-- Capabilities must be action-oriented, NOT process names
-- Customize heavily for the specific company — avoid Porter's generic template
-- No hallucination — infer intelligently from provided context
-- Consulting-grade clarity (McKinsey/Bain standard)
+Definitions:
+- A business value chain represents the end-to-end sequence of major business activities through which the organization creates, delivers, and captures value.
+- A Level 1 capability is a major business capability or value chain stage. It should describe "what the business must be able to do," not an application, department, process step, or technology.
+- A Level 2 capability is a more granular business ability under a Level 1 capability. It should also describe "what the business does," not "how it does it."
+- Capabilities must be stable over time and should not be written as temporary initiatives, projects, systems, tools, or organizational teams.
+
+Input You Will Receive:
+- Company name
+- Industry
+- Business model
+- Value proposition
+- Strategic focus areas
+- Pre-read document text or summary
+- Optional reference framework context, such as BIAN, APQC, TOGAF, or industry capability model
+
+Generation Rules:
+1. Generate 5 to 7 primary value chain stages only.
+2. Generate 3 to 4 Level 2 business capabilities under each primary value chain stage.
+3. Capabilities must be enterprise-grade, concise, and business-oriented.
+4. Do not generate generic capabilities unless they are relevant to the company and industry.
+5. Do not include software names, applications, vendors, databases, APIs, or technical components.
+6. Do not confuse business processes with business capabilities.
+7. Do not create capabilities as actions using verbs like "processing," "monitoring," "executing," or "managing" unless it is a standard capability name.
+8. Prefer noun-based capability names such as "Customer Onboarding," "Credit Risk Assessment," "Payment Operations," or "Treasury Management."
+9. Ensure the value chain is ordered logically from market/customer engagement to product/service delivery, servicing, risk/control, and value realization.
+10. Ensure the output is MECE: no overlapping capabilities, no duplicate capabilities, no unrelated capabilities, no mixing of support functions with primary value chain unless specifically requested.
+11. Use the company context and pre-read document as the primary source of truth.
+12. Use industry reference models only as guidance, not as copied output.
+13. For banks and financial institutions, align with banking domains such as customer acquisition, deposits, lending, payments, cards, wealth, risk, treasury, compliance, and servicing as applicable.
+14. If the company has multiple lines of business, create capabilities that represent the enterprise level, not only one product line.
+15. Avoid overly narrow operational tasks. Keep L2 capabilities at a level suitable for application mapping.
+16. If information is missing, make reasonable industry-based assumptions and clearly mark them as assumptions.
+17. The final output must be suitable for executive review and downstream mapping to applications, pain points, initiatives, and heatmaps.
+
+Quality Checks Before Answering:
+Before producing the final answer, verify:
+- Are there exactly 5 to 7 Level 1 primary value chain stages?
+- Does each Level 1 have exactly 3 to 4 Level 2 capabilities?
+- Are all capabilities business capabilities, not processes or applications?
+- Is the model specific to the company and industry?
+- Is the sequence logical and enterprise-level?
+- Are support functions separated from primary value chain if included?
+- Are names concise, professional, and suitable for a consulting deck?
 
 ## OUTPUT FORMAT
 Return ONLY valid JSON (no markdown, no preamble, no code fences) in this exact schema:
@@ -55,13 +96,7 @@ Return ONLY valid JSON (no markdown, no preamble, no code fences) in this exact 
   ]
 }
 
-## QUALITY STANDARDS
-- Primary Activities: 5-8 items (end-to-end value delivery flow)
-- Support Functions: 4-6 items
-- Capabilities per component: 4-7 (specific, non-generic)
-- Each capability name: 2-4 words, action-noun format
-- Each capability description: 1 crisp sentence explaining WHAT it enables
-- Output must start with { and end with } — nothing else"""
+Output must start with { and end with } — nothing else."""
 
 
 def build_user_prompt(
@@ -70,6 +105,8 @@ def build_user_prompt(
     description: str | None = None,
     repo_url: str | None = None,
     file_content: str | None = None,
+    industry_framework: str | None = None,
+    enterprise_context: str | None = None,
 ) -> str:
     lines = ["## ANALYSIS REQUEST\n"]
     lines.append(f"**Company:** {company_name}")
@@ -78,19 +115,39 @@ def build_user_prompt(
     if description:
         lines.append(f"\n**Business Context:**\n{description}")
 
-    if file_content:
+    if industry_framework:
+        lines.append(
+            f"\n## LAYER 1 — INDUSTRY FRAMEWORK REFERENCE\n"
+            f"The following content was retrieved from the knowledge repository and represents "
+            f"relevant industry frameworks and reference models for the {industry} sector. "
+            f"Use this as the structural benchmark and quality standard:\n\n"
+            f"{industry_framework}"
+        )
+
+    if enterprise_context:
+        lines.append(
+            f"\n## LAYER 2 — ENTERPRISE CONTEXT\n"
+            f"The following content was retrieved from uploaded documents and/or the knowledge "
+            f"repository and represents enterprise-specific information about {company_name}. "
+            f"Use this as the primary source of truth for company-specific capabilities:\n\n"
+            f"{enterprise_context}"
+        )
+    elif file_content:
+        # RAG embedding failed — fall back to raw file content
         lines.append(f"\n**Uploaded Document Content:**\n{file_content}")
 
-    if repo_url:
+    if repo_url and not industry_framework and not enterprise_context:
         lines.append(f"\n**Knowledge Repository URL:** {repo_url}")
         lines.append("(Use this as a reference signal for industry frameworks)")
 
     lines.append(
         "\n## INSTRUCTIONS\n"
-        "1. Perform deep context analysis from all inputs above\n"
-        "2. Enrich with industry-standard capability frameworks\n"
-        "3. Generate a highly customized, non-generic value chain\n"
-        "4. Return ONLY the JSON object — no explanations, no markdown fences"
+        "1. Use LAYER 1 (Industry Framework) as the structural reference and quality benchmark\n"
+        "2. Use LAYER 2 (Enterprise Context) as the primary source of truth for company-specific capabilities\n"
+        "3. Blend both layers to generate a highly customized, non-generic value chain\n"
+        "4. Keep the output business-oriented and enterprise-grade\n"
+        "5. Make the model suitable for application mapping, pain point mapping, initiative mapping and heatmap generation\n"
+        "6. Return ONLY the JSON object — no explanations, no markdown fences"
     )
     return "\n".join(lines)
 
@@ -151,12 +208,26 @@ async def generate_value_chain(
     repo_url: str | None = None,
     file_content: str | None = None,
 ) -> dict:
+    rag = await rag_service.retrieve_two_layer_context(
+        repo_url=repo_url,
+        company_name=company_name,
+        industry=industry,
+        file_content=file_content,
+    )
+    logger.info(
+        "RAG complete — Layer1(industry_framework)=%s Layer2(enterprise_context)=%s",
+        bool(rag.industry_framework),
+        bool(rag.enterprise_context),
+    )
+
     user_prompt = build_user_prompt(
         company_name=company_name,
         industry=industry,
         description=description,
         repo_url=repo_url,
         file_content=file_content,
+        industry_framework=rag.industry_framework,
+        enterprise_context=rag.enterprise_context,
     )
 
     logger.info(

@@ -1,8 +1,7 @@
 # backend/routers/api.py
 import logging
 import httpx
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
-from typing import Optional
+from fastapi import APIRouter, HTTPException, Request, UploadFile
 
 from backend.models.schemas import GenerateRequest, ValueChainResponse, HealthResponse
 from backend.services import ollama_service, file_service
@@ -83,13 +82,28 @@ async def generate(req: GenerateRequest):
 
 
 @router.post("/generate/upload", response_model=ValueChainResponse, tags=["Generate"])
-async def generate_with_upload(
-    company_name: str = Form(...),
-    industry: str = Form(...),
-    description: Optional[str] = Form(None),
-    repo_url: Optional[str] = Form(None),
-    files: list[UploadFile] = File(default=[]),
-):
+async def generate_with_upload(request: Request):
+    # Parse multipart form manually — bypasses Pydantic v2 form validation
+    # quirks where optional fields are incorrectly treated as required.
+    try:
+        form = await request.form()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Could not parse form data: {exc}")
+
+    company_name = (form.get("company_name") or "").strip()
+    industry = (form.get("industry") or "").strip()
+    description = form.get("description") or None
+    repo_url = form.get("repo_url") or None
+
+    if not company_name:
+        raise HTTPException(status_code=400, detail="company_name is required")
+    if not industry:
+        raise HTTPException(status_code=400, detail="industry is required")
+
+    # Accept files under either 'files' or 'file' key for broad compatibility
+    raw = form.getlist("files") or form.getlist("file")
+    files: list[UploadFile] = [f for f in raw if isinstance(f, UploadFile) and f.filename]
+
     logger.info(
         "Upload generate request — company=%r industry=%r files=%d",
         company_name,
@@ -105,17 +119,12 @@ async def generate_with_upload(
 
     try:
         for f in files:
-            if not f.filename:
-                continue
-
-            # Enforce file size limit
             content_preview = await f.read()
             if len(content_preview) > max_bytes:
                 raise HTTPException(
                     status_code=413,
                     detail=f"File '{f.filename}' exceeds {settings.max_file_size_mb} MB limit.",
                 )
-            # Rewind so extract_text can read it again
             await f.seek(0)
 
             logger.info("Extracting text from file=%r size=%d bytes", f.filename, len(content_preview))

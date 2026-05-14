@@ -5,10 +5,12 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2"
+    ollama_embed_model: str = "nomic-embed-text"
     ollama_temperature: float = 0.2
     ollama_num_predict: int = 5000
     cors_origins: list[str] = ["*"]
     max_file_size_mb: int = 10
+    github_token: str = ""  # optional — set in .env to raise rate limit from 60 to 5000/hr
 
     class Config:
         env_file = ".env"
